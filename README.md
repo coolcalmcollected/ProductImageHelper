@@ -42,16 +42,26 @@ pip install -r requirements.txt
 
 ### Running the App
 
-#### Option 1: Browser Interface (Recommended)
-Simply double-click:
-```cmd
-run.bat
-```
-or run:
+#### Windows
+Double-click `run.bat`, or run:
 ```bash
-.\venv\Scripts\python.exe app.py 5000
+.\venv\Scripts\python.exe app.py 5055
 ```
-This launches the local server and opens `http://127.0.0.1:5000` in your web browser.
+This launches the local server and opens `http://127.0.0.1:5055` in your web browser.
+
+#### macOS (Browser Mode)
+Make `run.command` executable once (`chmod +x run.command`) and double-click it in Finder, or run:
+```bash
+./run.command
+```
+
+#### macOS (Standalone `.app` Bundle)
+To build a standalone `ProductImageHelper.app` you can drag into `/Applications`:
+```bash
+chmod +x build_mac_app.sh
+./build_mac_app.sh
+```
+This packages the app with a native macOS window (`pywebview`) into `dist/ProductImageHelper.app`. On first run, the AI model weights download to `~/Library/Application Support/ProductImageHelper/`.
 
 #### Option 2: Command Line (CLI)
 Batch process images directly from the terminal:

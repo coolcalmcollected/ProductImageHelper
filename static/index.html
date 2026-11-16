@@ -378,11 +378,17 @@
       }
     });
 
+    function joinCleanedPath(dirPath) {
+      const clean = dirPath.replace(/[\\\/]+$/, '');
+      const sep = clean.includes('\\') && !clean.startsWith('/') ? '\\' : '/';
+      return `${clean}${sep}cleaned_600x600`;
+    }
+
     // Auto update output dir when input changes
     inputDirEl.addEventListener('input', () => {
       const val = inputDirEl.value.trim();
       if (val && !outputDirEl.value.trim()) {
-        outputDirEl.value = val.replace(/[\\\/]+$/, '') + '\\cleaned_600x600';
+        outputDirEl.value = joinCleanedPath(val);
       }
     });
 
@@ -401,7 +407,7 @@
             outputDirEl.value = data.path;
           } else {
             inputDirEl.value = data.path;
-            outputDirEl.value = data.path.replace(/[\\\/]+$/, '') + '\\cleaned_600x600';
+            outputDirEl.value = joinCleanedPath(data.path);
             scanFolder();
           }
         }
@@ -452,7 +458,7 @@
         alert('Please specify an input images directory first.');
         return;
       }
-      const outputDir = outputDirEl.value.trim() || (inputDir + '\\cleaned_600x600');
+      const outputDir = outputDirEl.value.trim() || joinCleanedPath(inputDir);
 
       const maxUpscaleVal = parseFloat(maxUpscaleSelect.value);
       const defringeVal = parseInt(defringeSelect.value);

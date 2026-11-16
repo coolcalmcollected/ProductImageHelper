@@ -3,9 +3,25 @@ import sys
 from pathlib import Path
 from PIL import Image, ImageFilter
 
-# Ensure local models folder is used by rembg
-WORKSPACE_DIR = Path(__file__).resolve().parent
-os.environ["U2NET_HOME"] = str(WORKSPACE_DIR)
+def get_model_home() -> Path:
+    """Return a writable directory for rembg ONNX model weights."""
+    workspace_dir = Path(__file__).resolve().parent
+    if not getattr(sys, "frozen", False) and (workspace_dir / "models").exists():
+        return workspace_dir
+
+    if sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support" / "ProductImageHelper"
+    elif sys.platform == "win32":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        base = Path(local_app_data) / "ProductImageHelper" if local_app_data else Path.home() / "AppData" / "Local" / "ProductImageHelper"
+    else:
+        base = Path.home() / ".local" / "share" / "ProductImageHelper"
+
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
+# Ensure rembg uses a writable, cross-platform model directory
+os.environ.setdefault("U2NET_HOME", str(get_model_home()))
 
 import rembg
 

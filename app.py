@@ -12,8 +12,14 @@ from urllib.parse import urlparse, parse_qs, unquote
 
 from cleaner import ProductImageCleaner, SUPPORTED_EXTENSIONS
 
-PORT = 5000
-STATIC_DIR = Path(__file__).resolve().parent / "static"
+PORT = 5055
+
+def get_static_dir() -> Path:
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS) / "static"
+    return Path(__file__).resolve().parent / "static"
+
+STATIC_DIR = get_static_dir()
 
 # Global state for jobs
 cleaner_instance = ProductImageCleaner()
@@ -22,22 +28,61 @@ job_workers = {}
 jobs_lock = threading.Lock()
 
 def open_native_folder_picker(initial_dir=""):
-    """Opens a native Windows folder selection dialog."""
+    """Opens a native OS folder selection dialog (thread-safe on Windows & macOS)."""
     try:
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes("-topmost", True)
-        folder = filedialog.askdirectory(
-            initialdir=initial_dir if os.path.exists(initial_dir) else None,
-            title="Select Image Folder"
-        )
-        root.destroy()
-        return folder or ""
+        if sys.platform == "darwin":
+            if initial_dir and os.path.exists(initial_dir):
+                script = (
+                    "on run argv\n"
+                    "set initDir to POSIX file (item 1 of argv)\n"
+                    'return POSIX path of (choose folder with prompt "Select Image Folder" default location initDir)\n'
+                    "end run"
+                )
+                cmd = ["osascript", "-e", script, initial_dir]
+            else:
+                script = 'return POSIX path of (choose folder with prompt "Select Image Folder")'
+                cmd = ["osascript", "-e", script]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode == 0:
+                chosen = res.stdout.strip()
+                if len(chosen) > 1:
+                    chosen = chosen.rstrip("/")
+                return chosen
+            return ""
+
+        elif sys.platform.startswith("linux"):
+            cmd = ["zenity", "--file-selection", "--directory", "--title=Select Image Folder"]
+            if initial_dir and os.path.exists(initial_dir):
+                cmd.append(f"--filename={initial_dir.rstrip('/')}/")
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode == 0:
+                return res.stdout.strip()
+            return ""
+
+        else:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            folder = filedialog.askdirectory(
+                initialdir=initial_dir if os.path.exists(initial_dir) else None,
+                title="Select Image Folder"
+            )
+            root.destroy()
+            return folder or ""
     except Exception as e:
         print(f"Error opening folder picker: {e}")
         return ""
+
+def open_folder_in_file_manager(folder_path: str):
+    """Opens a folder in Windows Explorer, macOS Finder, or Linux file manager."""
+    if sys.platform == "win32":
+        os.startfile(folder_path)
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", folder_path])
+    else:
+        subprocess.Popen(["xdg-open", folder_path])
 
 class BatchJobWorker(threading.Thread):
     def __init__(self, job_id: str, config: dict):
@@ -286,7 +331,7 @@ class AppRequestHandler(SimpleHTTPRequestHandler):
             folder_path = data.get("path", "")
             if folder_path and os.path.exists(folder_path):
                 try:
-                    os.startfile(folder_path)
+                    open_folder_in_file_manager(folder_path)
                     self.send_json({"status": "ok"})
                 except Exception as e:
                     self.send_json({"error": str(e)}, status=500)
@@ -305,10 +350,14 @@ class AppRequestHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-def run_server(port=PORT):
+def create_server(port=PORT):
     server_address = ("127.0.0.1", port)
-    httpd = ThreadingHTTPServer(server_address, AppRequestHandler)
-    print(f"ProductImageHelper running at http://127.0.0.1:{port}")
+    return ThreadingHTTPServer(server_address, AppRequestHandler)
+
+def run_server(port=PORT):
+    httpd = create_server(port)
+    actual_port = httpd.server_address[1]
+    print(f"ProductImageHelper running at http://127.0.0.1:{actual_port}")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

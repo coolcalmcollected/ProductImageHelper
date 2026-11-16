@@ -1,8 +1,14 @@
 # Virtual Environment
 venv/
+.venv_mac/
 env/
 ENV/
 .venv/
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec
 
 # AI Model weights (downloaded on demand or stored locally, 1GB+)
 models/
